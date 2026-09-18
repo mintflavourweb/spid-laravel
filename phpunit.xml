@@ -1,13 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" backupGlobals="false" backupStaticAttributes="false" beStrictAboutTestsThatDoNotTestAnything="false" bootstrap="vendor/autoload.php" colors="true" convertErrorsToExceptions="true" convertNoticesToExceptions="true" convertWarningsToExceptions="true" processIsolation="false" stopOnError="false" stopOnFailure="false" verbose="true" xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.3/phpunit.xsd">
-  <coverage processUncoveredFiles="true">
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" bootstrap="vendor/autoload.php" colors="true" beStrictAboutTestsThatDoNotTestAnything="false" cacheDirectory=".phpunit.cache" xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/12.5/phpunit.xsd">
+  <source>
     <include>
       <directory suffix=".php">src/</directory>
     </include>
-    <report>
-      <clover outputFile="clover.xml"/>
-    </report>
-  </coverage>
+  </source>
   <php>
     <env name="APP_KEY" value="AckfSECXIvnK5r28GVIWUAxmbBSjTsmF"/>
   </php>
@@ -16,5 +13,4 @@
       <directory suffix="Test.php">tests/</directory>
     </testsuite>
   </testsuites>
-  <logging/>
 </phpunit>

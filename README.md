@@ -17,70 +17,23 @@ changes.
 
 ## Installation
 
-1. Before installing this package patching must be enabled in `composer.json`.
-This is necessary because
-[this patch](https://rawgit.com/italia/spid-laravel/master/patches/php-saml-4.1.0-spid.patch)
-has to be applied to [onelogin/php-saml](https://github.com/onelogin/php-saml)
-for SPID compatibility.
+1. Require this package with Composer.
 
-   Edit your `composer.json` like this:
-   ```json
-   ...
-   "extra": {
-      "enable-patching": "true"
-   },
-   ...
-   ```
-   or simply run:
+   `composer require mintflavourweb/spid-laravel`
 
-   `composer config extra.enable-patching true`.
+2. [Exclude the URIs](https://laravel.com/docs/13.x/csrf#excluding-uris)
+   used by this package from request-forgery protection: Identity Providers
+   cannot include your application's CSRF token in their POST requests.
 
-   Since this package is still in beta, `minimum-stability` option must be set
-   to `beta` and the `prefer-stable` option must be set to `true` in
-   `composer.json`.
-
-    These options can be set by running:
-
-    ```console
-   composer config minimum-stability beta
-   composer config prefer-stable true
-   ```
-   ***For Windows only***
-
-   Composer needs the [patch command](https://en.wikipedia.org/wiki/Patch_%28Unix%29) to be installed (it is not part of Windows). To enable it [install Git](https://git-scm.com/download/win) then add the C:\Program Files\Git\usr\bin folder to the system path.
-
-
-    **This installation step will be removed before the first stable release of
-   this package.**
-
-2. Require this package with composer.
-
-   `composer require italia/spid-laravel`
-
-3. [Exclude the URIs](https://laravel.com/docs/10.x/csrf#csrf-excluding-uris)
-used by this package from CSRF protection because the the Identity Providers
-can't know what CSRF token include in their POST requests sent to your routes.
-
-   In your `app/Http/Middleware/VerifyCsrfToken.php` set `'/spid/*'` as an
-   element of the `$except` array.
+   In your `bootstrap/app.php`, add `spid/*` to the request-forgery exclusions:
    ```php
-   <?php
+   use Illuminate\Foundation\Configuration\Middleware;
 
-   namespace App\Http\Middleware;
-
-   use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken as Middleware;
-
-   class VerifyCsrfToken extends Middleware
-   {
-       /**
-        * The URIs that should be excluded from CSRF verification.
-        *
-        * @var array
-        */
-       protected $except = [
-           '/spid/*'
-       ];
-   }
+   ->withMiddleware(function (Middleware $middleware): void {
+       $middleware->preventRequestForgery(except: [
+           'spid/*',
+       ]);
+   })
    ```
 
 ## Configuration
@@ -118,15 +71,15 @@ endpoint and the `HTTP-Redirect` for the the SingleLogoutService endpoint.
 **Application options**
 
 - `middleware_group`:
-  the [middleware group](https://laravel.com/docs/10.x/middleware#middleware-groups)
+  the [middleware group](https://laravel.com/docs/13.x/middleware#laravels-default-middleware-groups)
   assigned to the packages routes. The default value is `web` which comes with
   Laravel out of the box and provides some common features like session
   management and cookies. You can add more middlewares using an array but `web`
   must be always included.
 - `routes_prefix`:
-  the [route prefix](https://laravel.com/docs/10.x/routing#route-group-prefixes)
+  the [route prefix](https://laravel.com/docs/13.x/routing#route-group-prefixes)
   applied to the package routes. If you change the default `spid` value make
-  sure to reflect this change in the `app/Http/Middleware/VerifyCsrfToken.php`
+  sure to reflect this change in the `bootstrap/app.php`
   file as described above. *Please note that in this document the value is
   assumed to be `spid`*.
 - `login_view`:
@@ -264,7 +217,7 @@ about the authenticated user. Both events share these methods:
 - `getIdp()` returns the entityName of the Identity Provider.
 
 To listen to both events using the same object, you can use an
-[Event Subscriber](https://laravel.com/docs/10.x/events#event-subscribers) class
+[Event Subscriber](https://laravel.com/docs/13.x/events#event-subscribers) class
 that can be defined as follow:
 
 ```php
@@ -274,13 +227,14 @@ namespace App\Listeners;
 
 use Italia\SPIDAuth\Events\LoginEvent;
 use Italia\SPIDAuth\Events\LogoutEvent;
+use Illuminate\Events\Dispatcher;
 
 class SPIDEventSubscriber
 {
     /**
      * Handle SPID login events.
      */
-    public function onSPIDLogin($event) {
+    public function onSPIDLogin(LoginEvent $event): void {
         // $event->getSPIDUser() and $event->getIdp() are available here
         // your application logic goes here
     }
@@ -288,7 +242,7 @@ class SPIDEventSubscriber
     /**
      * Handle SPID logout events.
      */
-    public function onSPIDLogout($event) {
+    public function onSPIDLogout(LogoutEvent $event): void {
         // $event->getSPIDUser() and $event->getIdp() are available here
         // your application logic goes here
     }
@@ -296,29 +250,32 @@ class SPIDEventSubscriber
     /**
      * Register the listeners for the subscriber.
      *
-     * @param  Illuminate\Events\Dispatcher $events
      */
-    public function subscribe($events)
+    public function subscribe(Dispatcher $events): void
     {
         $events->listen(
-          LoginEvent::class, [ SPIDEventSubscriber::class, 'onSPIDLogin' ]
+            LoginEvent::class, [self::class, 'onSPIDLogin']
         );
 
         $events->listen(
-          LogoutEvent::class, [ SPIDEventSubscriber::class, 'onSPIDLogout' ]
+            LogoutEvent::class, [self::class, 'onSPIDLogout']
         );
     }
 
 }
 ```
 
-The `SPIDEventSubscriber` class must be added to the `$subscribe` array in
-`app/Providers/EventServiceProvider.php`:
+Register the subscriber in the `boot` method of
+`app/Providers/AppServiceProvider.php`:
 
 ```php
-protected $subscribe = [
-    SPIDEventSubscriber::class,
-];
+use App\Listeners\SPIDEventSubscriber;
+use Illuminate\Support\Facades\Event;
+
+public function boot(): void
+{
+    Event::subscribe(SPIDEventSubscriber::class);
+}
 ```
 
 The `SPIDUser` class provides `<attribute>` properties for the attributes
@@ -356,8 +313,8 @@ This will create the following files:
 - `resources/views/home.blade.php`
 - `resources/views/private.blade.php`
 
-Next add the `SPIDEventSubscriber` class in
-`app/Providers/EventServiceProvider.php` as described above.
+Next register `SPIDEventSubscriber` in `app/Providers/AppServiceProvider.php`
+as described above.
 
 You can open `storage/logs/laravel.log` to read some example informations logged by the
 `SPIDEventSubscriber`.

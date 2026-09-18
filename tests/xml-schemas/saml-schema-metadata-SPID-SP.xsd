@@ -19,7 +19,7 @@
     <import namespace="urn:oasis:names:tc:SAML:2.0:assertion"
             schemaLocation="saml-schema-assertion-2.0.xsd"/>
     <import namespace="http://www.w3.org/XML/1998/namespace"
-            schemaLocation="http://www.w3.org/2001/xml.xsd"/>
+            schemaLocation="xml.xsd"/>
     <import namespace="https://spid.gov.it/saml-extensions"
             schemaLocation="spid.xsd"/>
     <import namespace="https://spid.gov.it/invoicing-extensions"

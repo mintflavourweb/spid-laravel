@@ -21,12 +21,18 @@ class CommandExampleTest extends TestCase
     protected function tearDown(): void
     {
         $this->rrmdir(__DIR__ . '/test_app');
+
+        parent::tearDown();
     }
 
     public function testHandle()
     {
         $returnCode = Artisan::call('spid-auth:example');
         $this->assertEquals($returnCode, 0);
+
+        $subscriber = file_get_contents(__DIR__ . '/test_app/app/Listeners/SPIDEventSubscriber.php');
+        $this->assertStringContainsString('use Illuminate\\Events\\Dispatcher;', $subscriber);
+        $this->assertStringContainsString('LoginEvent::class', $subscriber);
     }
 
     public function testOverwrite()

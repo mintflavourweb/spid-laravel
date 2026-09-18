@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This class implements a Laravel Controller for SPIDAuth Package.
  *
@@ -23,6 +24,7 @@ use Italia\SPIDAuth\Exceptions\SPIDLoginAnomalyException;
 use Italia\SPIDAuth\Exceptions\SPIDLoginException;
 use Italia\SPIDAuth\Exceptions\SPIDLogoutException;
 use Italia\SPIDAuth\Exceptions\SPIDMetadataException;
+use Italia\SPIDAuth\SAML\SPIDAuth as SPIDSAMLAuth;
 use OneLogin\Saml2\Auth as SAMLAuth;
 use OneLogin\Saml2\Constants as SAMLConstants;
 use OneLogin\Saml2\Error as SAMLError;
@@ -140,6 +142,10 @@ class SPIDAuth extends Controller
         $this->validateLoginResponse($lastResponseXML, $lastRequestIssueInstant);
 
         try {
+            if (!is_int($assertionNotOnOrAfter) && !ctype_digit((string) $assertionNotOnOrAfter)) {
+                throw new Exception('Invalid assertion expiry');
+            }
+
             $assertionExpiry = Carbon::parse('@' . $assertionNotOnOrAfter);
         } catch (Exception $e) {
             throw new SPIDLoginException('SAML response validation error: invalid NotOnOrAfter attribute', SPIDLoginException::SAML_VALIDATION_ERROR, $e);
@@ -166,7 +172,9 @@ class SPIDAuth extends Controller
         session(['spid_idpEntityName' => $idpEntityName]);
         session(['spid_sessionId' => $this->getSAML($idp)->getLastMessageId()]);
         session(['spid_nameId' => $this->getSAML($idp)->getNameId()]);
-        session(['spid_user' => $SPIDUser]);
+        // Laravel 13 serializes sessions as JSON by default. Keep only scalar /
+        // array data in the session and hydrate SPIDUser at the API boundary.
+        session(['spid_user' => $attributes]);
 
         event(new LoginEvent($SPIDUser, session('spid_idpEntityName')));
 
@@ -199,7 +207,8 @@ class SPIDAuth extends Controller
 
             if (config('spid-auth.only_sp_logout')) {
                 $idpEntityName = session()->pull('spid_idpEntityName');
-                $SPIDUser = session()->pull('spid_user');
+                $SPIDUser = $this->getSPIDUser();
+                session()->forget('spid_user');
                 session()->forget('spid_idp');
 
                 event(new LogoutEvent($SPIDUser, $idpEntityName));
@@ -218,7 +227,8 @@ class SPIDAuth extends Controller
 
         if (request()->has('SAMLResponse')) {
             $idpEntityName = session()->pull('spid_idpEntityName');
-            $SPIDUser = session()->pull('spid_user');
+            $SPIDUser = $this->getSPIDUser();
+            session()->forget('spid_user');
             $idp = session()->pull('spid_idp');
 
             event(new LogoutEvent($SPIDUser, $idpEntityName));
@@ -279,6 +289,25 @@ class SPIDAuth extends Controller
 
             $contacts = config('spid-auth.sp_contact_persons');
             $root = $document->documentElement;
+            $root->removeAttribute('validUntil');
+            $root->removeAttribute('cacheDuration');
+
+            $metadataNamespace = 'urn:oasis:names:tc:SAML:2.0:metadata';
+            $acsIndex = (int) config('spid-auth.sp_acs_index');
+            foreach ($document->getElementsByTagNameNS($metadataNamespace, 'AssertionConsumerService') as $acs) {
+                $acs->setAttribute('index', (string) $acsIndex);
+                $acs->removeAttribute('isDefault');
+
+                if (0 === $acsIndex) {
+                    $acs->setAttribute('isDefault', 'true');
+                }
+            }
+
+            $attributesIndex = (int) config('spid-auth.sp_attributes_index');
+            foreach ($document->getElementsByTagNameNS($metadataNamespace, 'AttributeConsumingService') as $attributeService) {
+                $attributeService->setAttribute('index', (string) $attributesIndex);
+            }
+
             foreach ($contacts as $type => $contact) {
                 $cp = $document->createElement('md:ContactPerson');
                 $cp->setAttribute('contactType', $type);
@@ -385,7 +414,13 @@ class SPIDAuth extends Controller
      */
     public function getSPIDUser()
     {
-        return session()->get('spid_user', null);
+        $SPIDUser = session()->get('spid_user');
+
+        if ($SPIDUser instanceof SPIDUser) {
+            return $SPIDUser;
+        }
+
+        return is_array($SPIDUser) ? new SPIDUser($SPIDUser) : null;
     }
 
     /**
@@ -736,7 +771,7 @@ class SPIDAuth extends Controller
     protected function getSAML(?string $idp): SAMLAuth
     {
         if (empty($this->saml) || $this->saml->getSettings()->getIdPData()['provider'] !== $idp) {
-            $this->saml = new SAMLAuth($this->getSAMLConfig($idp ?? 'empty'));
+            $this->saml = new SPIDSAMLAuth($this->getSAMLConfig($idp ?? 'empty'));
         }
 
         return $this->saml;

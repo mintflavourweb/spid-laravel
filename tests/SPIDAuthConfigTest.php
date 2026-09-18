@@ -2,12 +2,81 @@
 
 namespace Italia\SPIDAuth\Tests;
 
+use DOMDocument;
 use Italia\SPIDAuth\Exceptions\SPIDConfigurationException;
+use Italia\SPIDAuth\SAML\SPIDAuth as SPIDSAMLAuth;
+use OneLogin\Saml2\Settings;
 use Orchestra\Testbench\TestCase;
 use ReflectionClass;
 
 class SPIDAuthConfigTest extends TestCase
 {
+    public function testAuthnRequestKeepsSpidRequiredFieldsWithoutVendorPatch()
+    {
+        $settings = new Settings($this->getSPIDAuthConfig());
+        $request = (new SPIDSAMLAuth($this->getSPIDAuthConfig()))->buildAuthnRequest($settings, true, false, true, 'ignored-subject');
+        $document = new DOMDocument();
+        $document->loadXML($request->getXML());
+
+        $root = $document->documentElement;
+        $issuer = $document->getElementsByTagNameNS('urn:oasis:names:tc:SAML:2.0:assertion', 'Issuer')->item(0);
+        $nameIdPolicy = $document->getElementsByTagNameNS('urn:oasis:names:tc:SAML:2.0:protocol', 'NameIDPolicy')->item(0);
+
+        $this->assertSame('0', $root->getAttribute('AttributeConsumingServiceIndex'));
+        $this->assertSame('true', $root->getAttribute('ForceAuthn'));
+        $this->assertSame(config('spid-auth.sp_entity_id'), $issuer->getAttribute('NameQualifier'));
+        $this->assertSame('urn:oasis:names:tc:SAML:2.0:nameid-format:entity', $issuer->getAttribute('Format'));
+        $this->assertFalse($nameIdPolicy->hasAttribute('AllowCreate'));
+        $this->assertFalse($root->hasAttribute('ProviderName'));
+        $this->assertSame(0, $document->getElementsByTagNameNS('urn:oasis:names:tc:SAML:2.0:assertion', 'Subject')->length);
+        $this->assertSame($request->getXML(), gzinflate(base64_decode($request->getRequest())));
+    }
+
+    public function testLogoutRequestKeepsSpidRequiredFieldsWithoutVendorPatch()
+    {
+        $config = $this->getSPIDAuthConfig();
+        $settings = new Settings($config);
+        $request = (new SPIDSAMLAuth($config))->buildLogoutRequest($settings);
+        $document = new DOMDocument();
+        $document->loadXML($request->getXML());
+
+        $root = $document->documentElement;
+        $issuer = $document->getElementsByTagNameNS('urn:oasis:names:tc:SAML:2.0:assertion', 'Issuer')->item(0);
+
+        $this->assertSame($config['idp']['entityId'], $root->getAttribute('Destination'));
+        $this->assertSame($config['sp']['entityId'], $issuer->getAttribute('NameQualifier'));
+        $this->assertSame('urn:oasis:names:tc:SAML:2.0:nameid-format:entity', $issuer->getAttribute('Format'));
+        $this->assertSame($request->getXML(), gzinflate(base64_decode($request->getRequest())));
+    }
+
+    public function testLoginAndLogoutRedirectsEncodeTheSpidRequests()
+    {
+        $config = $this->getSPIDAuthConfig();
+        $auth = new SPIDSAMLAuth($config);
+
+        $loginUrl = $auth->login('relay', [], true, false, true);
+        parse_str(parse_url($loginUrl, PHP_URL_QUERY), $loginParameters);
+        $this->assertSame($auth->getLastRequestXML(), gzinflate(base64_decode($loginParameters['SAMLRequest'])));
+        $this->assertStringContainsString('AttributeConsumingServiceIndex=', $auth->getLastRequestXML());
+
+        $logoutUrl = $auth->logout('relay', [], null, null, true);
+        parse_str(parse_url($logoutUrl, PHP_URL_QUERY), $logoutParameters);
+        $this->assertSame($auth->getLastRequestXML(), gzinflate(base64_decode($logoutParameters['SAMLRequest'])));
+
+        $document = new DOMDocument();
+        $document->loadXML($auth->getLastRequestXML());
+        $this->assertSame($config['idp']['entityId'], $document->documentElement->getAttribute('Destination'));
+    }
+
+    public function testLogoutResponseTrimsIssuer()
+    {
+        $config = $this->getSPIDAuthConfig();
+        $response = base64_encode('<samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"><saml:Issuer>  idp-issuer  </saml:Issuer></samlp:LogoutResponse>');
+        $logoutResponse = (new SPIDSAMLAuth($config))->buildLogoutResponse(new Settings($config), $response);
+
+        $this->assertSame('idp-issuer', $logoutResponse->getIssuer());
+    }
+
     public function testMissingEntityId()
     {
         $this->withoutExceptionHandling();

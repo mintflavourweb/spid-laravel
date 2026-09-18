@@ -1,4 +1,5 @@
 <?php
+
 /**
  * This class implements a Laravel Service Provider for SPIDAuth Package.
  *
@@ -34,9 +35,11 @@ class ServiceProvider extends LaravelServiceProvider
         $this->publishes([$configAuth => config_path('spid-auth.php')], 'spid-config');
         $this->publishes([$assets => public_path('vendor/spid-auth')], 'spid-assets');
 
-        $router->aliasMiddleware('spid.auth', \Italia\SPIDAuth\Middleware::class);
+        $router->aliasMiddleware('spid.auth', Middleware::class);
 
-        View::share('SPIDActionUrl', route('spid-auth_do-login'));
+        View::composer('spid-auth::spid-button', function ($view) {
+            $view->with('SPIDActionUrl', route('spid-auth_do-login'));
+        });
     }
 
     /**
@@ -48,6 +51,6 @@ class ServiceProvider extends LaravelServiceProvider
             return new SPIDAuth();
         });
 
-        $this->commands(\Italia\SPIDAuth\Console\CommandExample::class);
+        $this->commands(Console\CommandExample::class);
     }
 }

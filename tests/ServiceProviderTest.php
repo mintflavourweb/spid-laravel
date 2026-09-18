@@ -20,12 +20,12 @@ class ServiceProviderTest extends TestCase
     {
         $allRoutes = Route::getRoutes();
         $spidRoutesNames = [
-          'spid-auth_login',
-          'spid-auth_do-login',
-          'spid-auth_logout',
-          'spid-auth_acs',
-          'spid-auth_metadata',
-          'spid-auth_providers',
+            'spid-auth_login',
+            'spid-auth_do-login',
+            'spid-auth_logout',
+            'spid-auth_acs',
+            'spid-auth_metadata',
+            'spid-auth_providers',
         ];
 
         foreach ($spidRoutesNames as $routeName) {
@@ -38,9 +38,11 @@ class ServiceProviderTest extends TestCase
         $this->assertArrayHasKey('spid.auth', Route::getMiddleware());
     }
 
-    public function testIfSharedViewDataExists()
+    public function testSpidButtonUsesNamedLoginRoute()
     {
-        $this->assertArrayHasKey('SPIDActionUrl', View::getShared());
+        $html = View::make('spid-auth::spid-button')->render();
+
+        $this->assertStringContainsString('action="' . route('spid-auth_do-login') . '"', $html);
     }
 
     public function testIfCommandExampleExists()

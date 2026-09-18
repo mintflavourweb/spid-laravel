@@ -41,6 +41,22 @@ class SPIDAuthTest extends SPIDAuthBaseTestCase
         $response->assertRedirect('intendedURL');
     }
 
+    public function testSPIDUserIsHydratedFromJsonSerializableSessionData()
+    {
+        $this->withSession([
+            'spid_user' => [
+                'name' => ['Nome'],
+                'familyName' => ['Cognome'],
+            ],
+        ]);
+
+        $SPIDUser = $this->app->make('SPIDAuth')->getSPIDUser();
+
+        $this->assertInstanceOf(SPIDUser::class, $SPIDUser);
+        $this->assertSame('Nome', $SPIDUser->name);
+        $this->assertSame('Cognome', $SPIDUser->familyName);
+    }
+
     public function testDoLoginIfAuthenticated()
     {
         $response = $this->withSession([
@@ -418,11 +434,38 @@ class SPIDAuthTest extends SPIDAuthBaseTestCase
         $response->assertStatus(200);
         $metadata->loadXML($response->getContent());
 
+        $this->assertFalse($metadata->documentElement->hasAttribute('validUntil'));
+        $this->assertFalse($metadata->documentElement->hasAttribute('cacheDuration'));
+        $acs = $metadata->getElementsByTagNameNS('urn:oasis:names:tc:SAML:2.0:metadata', 'AssertionConsumerService')->item(0);
+        $this->assertSame('0', $acs->getAttribute('index'));
+        $this->assertSame('true', $acs->getAttribute('isDefault'));
+        $attributeService = $metadata->getElementsByTagNameNS('urn:oasis:names:tc:SAML:2.0:metadata', 'AttributeConsumingService')->item(0);
+        $this->assertSame('0', $attributeService->getAttribute('index'));
+
         libxml_use_internal_errors(true);
         $ret = $metadata->schemaValidate('tests/xml-schemas/saml-schema-metadata-SPID-SP.xsd');
         $this->libxml_display_errors();
 
         $this->assertTrue($ret);
+    }
+
+    public function testMetadataUsesConfiguredServiceIndexes()
+    {
+        Config::set('spid-auth.sp_acs_index', 2);
+        Config::set('spid-auth.sp_attributes_index', 3);
+
+        $response = $this->get($this->metadataURL);
+        $response->assertStatus(200);
+
+        $metadata = new DOMDocument();
+        $metadata->loadXML($response->getContent());
+        $namespace = 'urn:oasis:names:tc:SAML:2.0:metadata';
+        $acs = $metadata->getElementsByTagNameNS($namespace, 'AssertionConsumerService')->item(0);
+        $attributeService = $metadata->getElementsByTagNameNS($namespace, 'AttributeConsumingService')->item(0);
+
+        $this->assertSame('2', $acs->getAttribute('index'));
+        $this->assertFalse($acs->hasAttribute('isDefault'));
+        $this->assertSame('3', $attributeService->getAttribute('index'));
     }
 
     public function testMetadataSPPublic()

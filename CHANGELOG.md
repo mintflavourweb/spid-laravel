@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Support Laravel 13 and PHP 8.3+; update the test stack to Testbench 11 and PHPUnit 12.
+- Update `onelogin/php-saml` to 4.3.2 and handle SPID requests, responses, and metadata in the package without Composer patches.
+- Store SPID session attributes in a JSON-compatible form while preserving the `getSPIDUser()` API.
+- Update Laravel 13 setup instructions and CI checks.
+
 ## [v2.0.4-beta] - 2025-01-25
 
 - Update IdP

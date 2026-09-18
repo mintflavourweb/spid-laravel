@@ -31,7 +31,7 @@ commands:
 
       - run:
           name: Run composer install
-          command: composer install --prefer-dist --no-interaction --no-suggest --no-progress --ignore-platform-reqs
+          command: composer install --prefer-dist --no-interaction --no-progress
 
   structure-validation:
     description: Ensure package directory strucure is valid
@@ -44,20 +44,15 @@ commands:
     description: Ensure php code follows style rules
     steps:
       - run:
-          name: Run php-cs-fixer (future mode)
-          command: |
-            PHP_CS_FIXER_FUTURE_MODE=1
-            vendor/bin/php-cs-fixer fix --diff --dry-run --verbose
+          name: Run php-cs-fixer
+          command: vendor/bin/php-cs-fixer fix --diff --dry-run --verbose --sequential
 
   security:
     description: Check known security issues in php dependencies
     steps:
       - run:
-          name: Run security-checker
-          command: |
-            wget https://get.symfony.com/cli/installer -O - | bash
-            sudo mv /home/circleci/.symfony5/bin/symfony /usr/local/bin/symfony
-            symfony check:security
+          name: Audit Composer dependencies
+          command: composer audit --locked
 
   save_all_caches:
     description: Save php and javascript dependencies
@@ -88,7 +83,7 @@ jobs:
       # test
       - run:
           name: Run phpunit
-          command: vendor/bin/phpunit
+          command: vendor/bin/phpunit --coverage-clover clover.xml
       - codecov/upload
 
 workflows:
@@ -97,4 +92,4 @@ workflows:
       - build:
           matrix:
             parameters:
-              php-version: ["8.2"]
+              php-version: ["8.3", "8.4", "8.5"]

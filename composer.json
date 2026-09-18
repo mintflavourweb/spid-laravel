@@ -6,7 +6,7 @@
     "Laravel",
     "PHP"
   ],
-  "homepage": "https://github.com/italia/spid-laravel",
+  "homepage": "https://github.com/mintflavourweb/spid-laravel",
   "license": "BSD-3-Clause",
   "authors": [
     {
@@ -15,20 +15,19 @@
     }
   ],
   "require": {
-    "php": ">=8.0",
-    "illuminate/config": ">=9.52.4",
-    "illuminate/support": "^10.0 || ^11.0 || ^12.0",
-    "onelogin/php-saml": "4.1.0",
-    "cweagans/composer-patches": "^1.7",
+    "php": "^8.3",
+    "illuminate/config": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+    "illuminate/support": "^10.0 || ^11.0 || ^12.0 || ^13.0",
+    "onelogin/php-saml": "^4.3.2",
     "nesbot/carbon": "^2.66 || ^3.0"
   },
   "require-dev": {
     "pds/skeleton": "~1.0",
-    "phpunit/phpunit": "^9.5.10",
-    "orchestra/testbench": "^7.22.1",
-    "mockery/mockery": "^1.5.1",
+    "phpunit/phpunit": "^12.5.8",
+    "orchestra/testbench": "^11.2",
+    "mockery/mockery": "^1.6.10",
     "mikey179/vfsstream": "^1.6",
-    "friendsofphp/php-cs-fixer": "~3.41.0"
+    "friendsofphp/php-cs-fixer": "^3.88"
   },
   "autoload": {
     "psr-4": {
@@ -45,11 +44,6 @@
       "providers": [
         "Italia\\SPIDAuth\\ServiceProvider"
       ]
-    },
-    "patches": {
-      "onelogin/php-saml": {
-        "Compatibility with SPID": "https://rawgit.com/italia/spid-laravel/master/patches/php-saml-4.1.0-spid.patch"
-      }
     }
   },
   "archive": {
@@ -61,8 +55,8 @@
     ]
   },
   "config": {
-    "allow-plugins": {
-      "cweagans/composer-patches": true
+    "platform": {
+      "php": "8.3.0"
     }
   }
 }
